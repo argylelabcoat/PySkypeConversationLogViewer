@@ -2,6 +2,48 @@
 import sqlite3
 import argparse
 
+def getLog(partner, path):
+	con = sqlite3.connect(path)
+	cur = con.cursor()
+	#
+	log = []
+	#get log for partner
+	getLog = """ SELECT 
+					author, 
+					from_dispname, 
+					datetime(timestamp, 'unixepoch') as date, 
+					body_xml 
+				FROM Messages where dialog_partner = '{partner}' ORDER BY timestamp """
+	query = getLog.format(partner=partner)
+	cur.execute(query)
+	all = cur.fetchall()
+	for record in all:
+		if record:
+			# record is tuple: (from: acct name, from: display name, timestamp, message)
+			acct,display,timestamp,message = record
+			messagetext = ""		
+			if message:
+				messagetext = message.encode('utf-8')
+			log.append( {'time':timestamp, 'name':display, 'message':messagetext } )
+	con.close()
+	return log
+
+def getPartners(path):	
+	con = sqlite3.connect(path)
+	cur = con.cursor()
+	#
+	partners = []
+	#list partners
+	getPartners = "SELECT DISTINCT(dialog_partner) FROM Messages;"
+	query = getPartners
+	cur.execute(query)
+	all = cur.fetchall()
+	for record in all:
+		if record[0]:
+			partners.append(str(record[0]))
+	con.close()
+	return partners
+
 
 
 if __name__=="__main__":
@@ -12,40 +54,18 @@ if __name__=="__main__":
 	parser.add_argument("-l","--list",help="list all users with whom we have communicated",action="store_true")
 	args = parser.parse_args()
 
-	con = sqlite3.connect(args.path)
-	cur = con.cursor()
-	
-	#list partners
-	getPartners = "SELECT DISTINCT(dialog_partner) FROM Messages;"
-	
-	#get log for partner
-	getLog = """ SELECT 
-					author, 
-					from_dispname, 
-					datetime(timestamp, 'unixepoch') as date, 
-					body_xml 
-				FROM Messages where dialog_partner = '{partner}' ORDER BY timestamp """
 	
 	if args.user:
-		query = getLog.format(partner=args.user)
-		cur.execute(query)
-		all = cur.fetchall()
 		outputfmt = "[{time}]  {name}:\n-------------------\n{message}\n-------------------\n"
-		for record in all:
-			if record:
-				# record is tuple: (from: acct name, from: display name, timestamp, message)
-				acct,display,timestamp,message = record
-				messagetext = ""		
-				if message:
-					messagetext = message.encode('utf-8')
-				print outputfmt.format(time=timestamp,name=display,message=messagetext)
-				#print record
+		log = getLog(args.user,args.path)
+		for record in log:
+			print outputfmt.format(\
+				time=record['time'],\
+				name=record['name'],\
+				message=record['message'])
 	if args.list:
-		query = getPartners
-		cur.execute(query)
-		all = cur.fetchall()
-		for record in all:
-			if record[0]:
-				print str(record[0])
+		partners = getPartners(args.path)
+		for partner in partners:
+			print partner 
 
 	
